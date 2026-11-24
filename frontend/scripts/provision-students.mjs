@@ -188,7 +188,7 @@ async function loadOrCreateJournal(file, projectId, roster) {
   return journal;
 }
 
-function managedUid(projectId, studentId) {
+function legacyHashedUid(projectId, studentId) {
   const digest = createHash("sha256").update(`${projectId}\0${studentId}`).digest("hex");
   return `student-${digest}`;
 }
@@ -233,6 +233,17 @@ async function findAccountByEmail(auth, email) {
   } catch (error) {
     if (error.code !== "auth/user-not-found") throw error;
     return null;
+  }
+}
+
+async function assertNoLegacyIdentity(auth, db, projectId, studentId) {
+  const uid = legacyHashedUid(projectId, studentId);
+  const [account, profile] = await Promise.all([
+    findAccount(auth, uid),
+    db.doc(`users/${uid}`).get(),
+  ]);
+  if (account || profile.exists) {
+    throw new RegistrationError("이 학생은 기존 해시 UID로 등록된 기록이 있습니다. 기존 UID와 대여 이력을 유지하고, 별도 확인 없이 새 계정을 만들지 마세요.");
   }
 }
 
@@ -350,7 +361,11 @@ async function completeProfile(db, student, profileRef, roleRef, provisioningId)
 }
 
 export async function provisionStudent(auth, db, projectId, student) {
-  const uid = managedUid(projectId, student.studentId);
+  if (!isValidStudentId(student?.studentId)) {
+    throw new RegistrationError("학생 ID를 숫자 7자리로 입력해 주세요.");
+  }
+  await assertNoLegacyIdentity(auth, db, projectId, student.studentId);
+  const uid = student.studentId;
   const profileRef = db.doc(`users/${uid}`);
   const roleRef = db.doc(`roles/${uid}`);
   const stage = await stageProfile(db, student, student.provisioningId, profileRef, roleRef);
@@ -378,8 +393,8 @@ export async function provisionStudent(auth, db, projectId, student) {
   return true;
 }
 
-async function removeUnclaimedStage(db, student, projectId) {
-  const uid = managedUid(projectId, student.studentId);
+async function removeUnclaimedStage(db, student) {
+  const uid = student.studentId;
   const profileRef = db.doc(`users/${uid}`);
   await db.runTransaction(async (transaction) => {
     const profileSnapshot = await transaction.get(profileRef);
@@ -428,8 +443,8 @@ async function main() {
         const hasOwnedStage = error instanceof AliasCollisionError;
         if (hasOwnedStage) {
           try {
-            const uid = managedUid(projectId, student.studentId);
-            if (!(await findAccount(auth, uid))) await removeUnclaimedStage(db, student, projectId);
+            const uid = student.studentId;
+            if (!(await findAccount(auth, uid))) await removeUnclaimedStage(db, student);
           } catch {
             // The staged profile cannot grant access while inactive and marked.
           }

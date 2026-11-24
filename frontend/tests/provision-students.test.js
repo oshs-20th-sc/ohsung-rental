@@ -37,7 +37,7 @@ after(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-function managedUid(studentId) {
+function legacyHashedUid(studentId) {
   const digest = createHash("sha256").update(`${projectId}\0${studentId}`).digest("hex");
   return `student-${digest}`;
 }
@@ -92,6 +92,14 @@ test("the default validates a roster without creating an account or password fil
   await assert.rejects(stat(credentials), { code: "ENOENT" });
 });
 
+test("direct provisioning rejects an invalid student ID before reading or writing profiles", async () => {
+  await assert.rejects(
+    provisionStudent(auth, db, projectId, { studentId: "12345/other", name: "잘못된 ID" }),
+    /학생 ID를 숫자 7자리로 입력해 주세요/,
+  );
+  assert.equal((await db.doc("users/12345").get()).exists, false);
+});
+
 test("registration creates an ID-linked profile and usable password, then safely skips on retry", async () => {
   const student = { studentId: "2610702", name: "등록 학생", grade: 2 };
   const { credentials } = paths("registration");
@@ -107,7 +115,7 @@ test("registration creates an ID-linked profile and usable password, then safely
   const password = journal.students[0].password;
   assert.match(password, /^Aa1![A-Za-z0-9_-]{43}$/);
   const account = await auth.getUserByEmail(studentAuthEmail(student.studentId));
-  assert.equal(account.uid, managedUid(student.studentId));
+  assert.equal(account.uid, student.studentId);
   assert.equal(account.disabled, false);
   assert.deepEqual(account.customClaims, { student_id: student.studentId });
   assert.deepEqual((await db.doc(`users/${account.uid}`).get()).data(), student);
@@ -126,6 +134,37 @@ test("registration creates an ID-linked profile and usable password, then safely
   assert.match(second.stdout, /이미 발급됨 1건/);
   assert.equal(await readFile(credentials, "utf8"), journalText);
   assert.equal((await auth.getUserByEmail(studentAuthEmail(student.studentId))).uid, account.uid);
+});
+
+test("a leading-zero student ID is used as the exact Auth UID string", async () => {
+  const student = { studentId: "0012345", name: "선행 0 학생" };
+  const result = await run([student], ...applyLocally);
+  assert.equal(result.status, 0, result.stderr);
+
+  const account = await auth.getUserByEmail(studentAuthEmail(student.studentId));
+  assert.equal(account.uid, "0012345");
+  assert.deepEqual((await db.doc("users/0012345").get()).data(), student);
+});
+
+test("existing hashed-UID students keep their account and rental references without duplicate provisioning", async () => {
+  const student = { studentId: "2610713", name: "기존 해시 학생" };
+  const legacyUid = legacyHashedUid(student.studentId);
+  const email = studentAuthEmail(student.studentId);
+  const password = "Fictional-Legacy-123!";
+  await auth.createUser({ uid: legacyUid, email, password });
+  await auth.setCustomUserClaims(legacyUid, { student_id: student.studentId });
+  await db.doc(`users/${legacyUid}`).create(student);
+  await db.doc("rentals/legacy-student-rental").create({ userId: legacyUid });
+
+  const result = await run([student], ...applyLocally);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /기존 해시 UID/);
+  await assert.rejects(auth.getUser(student.studentId), { code: "auth/user-not-found" });
+  assert.equal((await db.doc(`users/${student.studentId}`).get()).exists, false);
+  assert.equal((await auth.getUser(legacyUid)).uid, legacyUid);
+  assert.deepEqual((await db.doc(`users/${legacyUid}`).get()).data(), student);
+  assert.deepEqual((await db.doc("rentals/legacy-student-rental").get()).data(), { userId: legacyUid });
+  assert.equal((await signIn(email, password)).ok, true);
 });
 
 test("the same private journal safely resumes after Auth was enabled but profile approval failed", async () => {
@@ -151,7 +190,7 @@ test("the same private journal safely resumes after Auth was enabled but profile
   };
   await assert.rejects(provisionStudent(auth, failFinalProfileWrite, projectId, student), /injected final profile failure/);
 
-  const uid = managedUid(student.studentId);
+  const uid = student.studentId;
   const stagedAccount = await auth.getUser(uid);
   assert.equal(stagedAccount.disabled, false);
   assert.equal(stagedAccount.customClaims.student_id, student.studentId);
@@ -184,7 +223,7 @@ test("an alias owned by another UID is never attached to the student profile", a
   const email = studentAuthEmail(student.studentId);
   const unrelated = await auth.createUser({ email, password: "Fictional-Collision-123!" });
   const result = await run([student], ...applyLocally);
-  const uid = managedUid(student.studentId);
+  const uid = student.studentId;
   assert.equal(result.status, 1);
   assert.match(result.stderr, /1번 항목 등록 실패/);
   assert.equal((await db.doc(`users/${uid}`).get()).exists, false);
@@ -193,7 +232,7 @@ test("an alias owned by another UID is never attached to the student profile", a
 
 test("an unmarked Auth-only account is not adopted and receives no membership", async () => {
   const student = { studentId: "2610705", name: "미확인 계정" };
-  const uid = managedUid(student.studentId);
+  const uid = student.studentId;
   const existing = await auth.createUser({
     uid,
     email: studentAuthEmail(student.studentId),
@@ -237,7 +276,7 @@ test("invalid IDs, grades, extra fields, and duplicate IDs are rejected before p
 
 test("disabled profiles and separately assigned administrator roles are not overwritten", async () => {
   const disabledStudent = { studentId: "2610709", name: "비활성 학생" };
-  const disabledUid = managedUid(disabledStudent.studentId);
+  const disabledUid = disabledStudent.studentId;
   await auth.createUser({
     uid: disabledUid,
     email: studentAuthEmail(disabledStudent.studentId),
@@ -253,7 +292,7 @@ test("disabled profiles and separately assigned administrator roles are not over
   assert.deepEqual((await db.doc(`users/${disabledUid}`).get()).data(), { ...disabledStudent, isActive: false });
 
   const adminStudent = { studentId: "2610711", name: "권한 보존" };
-  const adminUid = managedUid(adminStudent.studentId);
+  const adminUid = adminStudent.studentId;
   await db.doc(`roles/${adminUid}`).create({ admin: true });
   const adminResult = await run([adminStudent], ...applyLocally);
   assert.equal(adminResult.status, 1);
@@ -266,7 +305,7 @@ test("disabled profiles and separately assigned administrator roles are not over
 test("a fresh credentials file marks pre-existing accounts as already issued", async () => {
   const student = { studentId: "2610712", name: "기존 계정" };
   const email = studentAuthEmail(student.studentId);
-  const uid = managedUid(student.studentId);
+  const uid = student.studentId;
   const password = "Fictional-Original-123!";
   await auth.createUser({ uid, email, password });
   await auth.setCustomUserClaims(uid, { student_id: student.studentId });
