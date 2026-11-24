@@ -179,16 +179,16 @@ test("the same private journal safely resumes after Auth was enabled but profile
   await writeFile(credentials, JSON.stringify({ version: 1, projectId, students: [student] }), { mode: 0o600 });
   await chmod(credentials, 0o600);
 
-  let transactionCalls = 0;
   const failFinalProfileWrite = {
     doc: (path) => db.doc(path),
-    runTransaction(callback) {
-      transactionCalls++;
-      if (transactionCalls === 2) return Promise.reject(new Error("injected final profile failure"));
-      return db.runTransaction(callback);
-    },
+    getAll: (...refs) => db.getAll(...refs),
+    bulkWriter: () => db.bulkWriter(),
+    runTransaction: () => Promise.reject(new Error("injected final profile failure")),
   };
-  await assert.rejects(provisionStudent(auth, failFinalProfileWrite, projectId, student), /injected final profile failure/);
+  await assert.rejects(
+    provisionStudent(auth, failFinalProfileWrite, projectId, student, { emulator: true }),
+    /injected final profile failure/,
+  );
 
   const uid = student.studentId;
   const stagedAccount = await auth.getUser(uid);
@@ -244,9 +244,7 @@ test("an unmarked Auth-only account is not adopted and receives no membership", 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /이번 발급 작업에서 생성된 계정인지 확인할 수 없습니다/);
   const profile = await db.doc(`users/${uid}`).get();
-  assert.equal(profile.exists, true);
-  assert.equal(profile.get("isActive"), false);
-  assert.ok(profile.get("provisioningId"));
+  assert.equal(profile.exists, false);
   const unchanged = await auth.getUser(uid);
   assert.equal(unchanged.disabled, true);
   assert.deepEqual(unchanged.customClaims, { admin: true });

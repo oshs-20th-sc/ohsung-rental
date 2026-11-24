@@ -37,7 +37,7 @@ npm audit --omit=dev
 
 `npm run build:release`는 Firebase 웹 설정 네 값이 준비된 경우에만 실행합니다. 값이 비어 있으면 빌드 오류로 중단됩니다.
 
-테스트는 동시 대여와 번호 등록, 비활성 물품의 반납, 권한 회수, 학생 계정 발급 및 50건 이상 이력의 커서 조회를 가상 데이터로 검증합니다. `npm test`는 전체 테스트를 실행하며 학생 계정 발급 테스트도 포함합니다. 이번 배포 패키지 검증에서는 발급 스크립트를 불러오는 그 테스트 파일을 실행하지 않습니다. 테스트 코드는 그대로 유지하며, 전체 테스트는 나중에 격리된 Emulator에서 가상 계정만으로 실행할 수 있습니다.
+`npm test`는 가상 데이터로 동시 대여, 번호 등록, 비활성 물품의 반납, 권한 회수, 학생 계정 일괄 발급과 복구, 50건 이상 이력의 커서 조회를 검증합니다.
 
 ## 서비스 시작 전 한 번 설정
 
@@ -94,7 +94,15 @@ npm run students:provision -- "$HOME/students.local.json" --emulator --apply --c
 npm run students:provision -- "$HOME/students.local.json"   --project FIREBASE_PROJECT_ID --apply --credentials-out "$HOME/students.credentials.json"
 ```
 
-발급 결과 파일은 본인만 읽고 쓸 수 있도록 생성됩니다. 여기에 개인별로 생성된 초기 비밀번호가 있으므로 명단, 코드, 채팅 기록, 공용 저장소와 분리합니다. 성공이 확인된 학생에게만 해당 비밀번호를 개별 전달합니다. 중단 후에는 같은 프로젝트·명단·결과 파일로 재실행합니다. 기존 계정의 비밀번호나 관리자 역할은 일괄 등록으로 덮어쓰지 않습니다. 발급 경로는 Admin SDK를 사용하는 로컬 도구에 한정됩니다.
+발급 도구는 기존 UID와 이메일을 일괄 조회하고, 신규 Auth 계정을 최대 1,000명씩 가져옵니다. 계정별 무작위 솔트를 사용한 `STANDARD_SCRYPT` 비밀번호 해시와 `student_id` 클레임을 함께 등록합니다. UID 덮어쓰기 금지와 이메일 중복 검사는 서버 요청에도 적용합니다. Firestore는 BulkWriter로 발급 대기 프로필을 생성하며, 인증 계정과 발급 표식이 일치하는 학생만 프로필 승인을 마칩니다. [Firebase Auth 일괄 가져오기](https://firebase.google.com/docs/auth/admin/import-users)
+
+발급 결과 파일은 `0600` 권한으로 생성됩니다. 명단과 결과 파일은 저장소 밖에 보관합니다. 중단 후에는 같은 프로젝트·명단·결과 파일로 재실행하면 완료된 계정을 건너뛰고 발급 대기 항목을 이어서 처리합니다. `--initial-password="$shared_password"`를 사용했다면 재시도에도 같은 값을 지정합니다. 운영에서 공통 비밀번호로 발급한 신규 계정은 본인 확인 후 운영자가 개인별 임시 비밀번호를 설정하고 활성화할 때까지 비활성 상태를 유지합니다.
+
+```sh
+"$HOME/.ohsung-rental-private/provision-2026-students" --check
+"$HOME/.ohsung-rental-private/provision-2026-students" --apply
+"$HOME/.ohsung-rental-private/provision-2026-students" --apply --initial-password="$shared_password"
+```
 
 ## 관리자 콘솔과 물품 관리
 
