@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { parseArgs } from "node:util";
-import { applicationDefault, deleteApp, initializeApp } from "firebase-admin/app";
+import { deleteApp, initializeApp } from "firebase-admin/app";
 import { FieldPath, getFirestore } from "firebase-admin/firestore";
 
 const EMULATOR_PROJECT = "demo-ohsung-rental";
@@ -11,6 +11,18 @@ const BATCH_WRITE_LIMIT = 400;
 const CATEGORY_SEPARATOR = "|";
 
 export class InventoryMigrationError extends Error {}
+
+function requireLocalEmulator(db) {
+  const settings = db?._settings;
+  if (process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080" ||
+      db?.projectId !== EMULATOR_PROJECT ||
+      settings?.projectId !== EMULATOR_PROJECT ||
+      settings?.servicePath !== "127.0.0.1" ||
+      settings?.port !== 8080 ||
+      settings?.ssl !== false) {
+    throw new InventoryMigrationError("이 테스트 지원 코드는 demo-ohsung-rental의 loopback Firestore Emulator에서만 사용할 수 있습니다.");
+  }
+}
 
 function validCategory(value) {
   return typeof value === "string" &&
@@ -214,6 +226,7 @@ async function readActiveRentals(db, productRows) {
 }
 
 export async function inspectInventory(db) {
+  requireLocalEmulator(db);
   const [productRows, reservationRows, settingsSnapshot] = await Promise.all([
     listCollection(db, "products"),
     listCollection(db, "productNumbers"),
@@ -239,6 +252,7 @@ export async function inspectInventory(db) {
 }
 
 async function writeInventoryPlan(db, plan) {
+  requireLocalEmulator(db);
   if (plan.alreadyReady) return false;
 
   const actions = [
@@ -291,28 +305,28 @@ function readOptions(argv = process.argv.slice(2)) {
       },
     });
   } catch {
-    throw new InventoryMigrationError("옵션을 확인해 주세요. --project PROJECT 또는 --emulator를 사용하세요.");
+    throw new InventoryMigrationError("옵션을 확인해 주세요. 이 테스트 지원 코드는 --emulator만 사용할 수 있습니다.");
   }
 
   const { apply, emulator, project } = args.values;
-  if (Number(Boolean(emulator)) + Number(project !== undefined) !== 1) {
-    throw new InventoryMigrationError("--project PROJECT 또는 --emulator 하나를 지정하세요.");
+  if (project !== undefined) {
+    throw new InventoryMigrationError("실제 재고 마이그레이션은 rental-setup에서만 수행할 수 있습니다.");
   }
-  if (project !== undefined && !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project)) {
-    throw new InventoryMigrationError("Firebase 프로젝트 ID 형식이 올바르지 않습니다.");
+  if (!emulator) {
+    throw new InventoryMigrationError("이 테스트 지원 코드는 --emulator와 함께 로컬 데모 프로젝트에서만 사용할 수 있습니다.");
   }
-  if (!emulator && (
-    project.startsWith("demo-") ||
-    process.env.FIRESTORE_EMULATOR_HOST !== undefined ||
-    process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined
-  )) {
-    throw new InventoryMigrationError("운영 프로젝트 스캔에 Emulator 설정이 감지되었습니다.");
+  if ((process.env.FIRESTORE_EMULATOR_HOST !== undefined &&
+      process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080") ||
+      (process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined &&
+      process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099")) {
+    throw new InventoryMigrationError("로컬 demo-ohsung-rental Emulator 주소만 허용됩니다.");
   }
 
-  return { apply, emulator, project: emulator ? EMULATOR_PROJECT : project };
+  return { apply, emulator, project: EMULATOR_PROJECT };
 }
 
 export async function migrateInventory(db, { apply = false } = {}) {
+  requireLocalEmulator(db);
   const plan = await inspectInventory(db);
   if (apply && !plan.alreadyReady) await writeInventoryPlan(db, plan);
   return {
@@ -327,9 +341,7 @@ async function main() {
     process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
     process.env.METADATA_SERVER_DETECTION = "none";
   }
-  const app = initializeApp(options.emulator
-    ? { projectId: EMULATOR_PROJECT }
-    : { projectId: options.project, credential: applicationDefault() });
+  const app = initializeApp({ projectId: EMULATOR_PROJECT });
 
   try {
     const result = await migrateInventory(getFirestore(app), { apply: options.apply });

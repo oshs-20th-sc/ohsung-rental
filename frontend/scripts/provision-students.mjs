@@ -1,11 +1,11 @@
-import { createHash, randomBytes, scrypt } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import { chmod, link, lstat, open, readFile, unlink } from "node:fs/promises";
 import process from "node:process";
 import { basename, dirname, resolve } from "node:path";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { applicationDefault, deleteApp, initializeApp, SDK_VERSION } from "firebase-admin/app";
+import { deleteApp, initializeApp, SDK_VERSION } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { isValidStudentId, studentAuthEmail } from "../src/services/studentIdentity.js";
@@ -16,17 +16,29 @@ const maxJournalBytes = 2_000_000;
 const authImportLimit = 1_000;
 const authLookupSize = 50;
 const authWriteConcurrency = 20;
-const hashConcurrency = 8;
-const hash = {
-  algorithm: "STANDARD_SCRYPT",
-  memoryCost: 32_768,
-  blockSize: 8,
-  parallelization: 3,
-  derivedKeyLength: 32,
-};
-const deriveKey = promisify(scrypt);
 
 class RegistrationError extends Error {}
+
+function requireLocalAuthEmulator(auth) {
+  if (process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099" ||
+      auth?.app?.options?.projectId !== demoProject) {
+    throw new RegistrationError("이 테스트 지원 코드는 demo-ohsung-rental의 로컬 Auth Emulator에서만 사용할 수 있습니다.");
+  }
+}
+
+function requireLocalEmulators(auth, db, projectId) {
+  requireLocalAuthEmulator(auth);
+  const settings = db?._settings;
+  if (projectId !== demoProject ||
+      process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080" ||
+      db?.projectId !== demoProject ||
+      settings?.projectId !== demoProject ||
+      settings?.servicePath !== "127.0.0.1" ||
+      settings?.port !== 8080 ||
+      settings?.ssl !== false) {
+    throw new RegistrationError("계정 발급 테스트는 demo-ohsung-rental의 loopback Emulator에서만 실행할 수 있습니다.");
+  }
+}
 
 function readOptions() {
   let args;
@@ -42,7 +54,7 @@ function readOptions() {
       },
     });
   } catch {
-    throw new RegistrationError("명령 옵션을 확인해 주세요. README의 학생 등록 방법을 참고하세요.");
+    throw new RegistrationError("명령 옵션을 확인해 주세요. 실제 계정 발급은 rental-setup에서 수행합니다.");
   }
 
   const { values, positionals } = args;
@@ -56,20 +68,25 @@ function readOptions() {
   if (values.emulator && values.project !== undefined) {
     throw new RegistrationError("--emulator와 --project는 함께 사용할 수 없습니다.");
   }
+  if (values.project !== undefined) {
+    throw new RegistrationError("실제 학생 계정 발급은 rental-setup에서만 수행할 수 있습니다.");
+  }
+  if (values.emulator && (
+    (process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined &&
+      process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099") ||
+    (process.env.FIRESTORE_EMULATOR_HOST !== undefined &&
+      process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080")
+  )) {
+    throw new RegistrationError("로컬 demo-ohsung-rental Emulator 주소만 허용됩니다.");
+  }
   if (values["credentials-out"] && !values.apply) {
     throw new RegistrationError("비밀번호 파일은 --apply 등록에서만 만들 수 있습니다.");
   }
   if (values.apply && !values["credentials-out"]) {
     throw new RegistrationError("초기 비밀번호를 안전하게 전달할 --credentials-out 파일을 지정하세요.");
   }
-  if (values.apply && !values.emulator && !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(values.project ?? "")) {
-    throw new RegistrationError("운영 등록에는 Firebase 프로젝트 ID를 --project로 지정해야 합니다.");
-  }
-  if (values.apply && !values.emulator &&
-      (values.project.startsWith("demo-") ||
-       process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined ||
-       process.env.FIRESTORE_EMULATOR_HOST !== undefined)) {
-    throw new RegistrationError("운영 등록에는 데모 프로젝트나 Emulator 환경변수를 사용할 수 없습니다.");
+  if (values.apply && !values.emulator) {
+    throw new RegistrationError("실제 학생 계정 발급은 rental-setup에서 수행합니다. 웹 저장소의 스크립트는 --emulator 전용입니다.");
   }
   return { ...values, file: positionals[0], initialPassword };
 }
@@ -312,6 +329,7 @@ function validateProfile(profile, student) {
 }
 
 export function importNewUsers(auth, records, options) {
+  requireLocalAuthEmulator(auth);
   const handler = auth.authRequestHandler;
   // The pinned SDK has no public options for the batchCreate uniqueness checks.
   if (SDK_VERSION !== "14.5.1" || typeof handler?.invokeRequestHandler !== "function") {
@@ -331,24 +349,14 @@ export function importNewUsers(auth, records, options) {
   return guardedAuth.importUsers(records, options);
 }
 
-async function importRecord({ uid, email, student }, emulator) {
-  const record = {
+function importRecord({ uid, email, student }) {
+  return {
     uid,
     email,
     disabled: true,
     displayName: marker(student),
     customClaims: { student_id: student.studentId },
   };
-  if (emulator) return record;
-
-  const salt = randomBytes(32);
-  const passwordHash = await deriveKey(student.password, salt, hash.derivedKeyLength, {
-    N: hash.memoryCost,
-    r: hash.blockSize,
-    p: hash.parallelization,
-    maxmem: 64 * 1024 * 1024,
-  });
-  return { ...record, passwordHash, passwordSalt: salt };
 }
 
 async function getProfiles(db, rows) {
@@ -378,15 +386,12 @@ async function createProfiles(db, rows) {
   await Promise.all([...writes, writer.close()]);
 }
 
-async function importMissingAccounts(auth, rows, emulator, importer) {
+async function importMissingAccounts(auth, rows, importer) {
   const candidates = rows.filter((row) => !row.result && !row.account);
   if (!candidates.length) return;
 
-  // Hashing can be slow. Re-read identifiers after hashing, before sending each import.
-  const records = [];
-  for (const group of chunks(candidates, hashConcurrency)) {
-    records.push(...await Promise.all(group.map((row) => importRecord(row, emulator))));
-  }
+  const records = candidates.map(importRecord);
+  // Re-read identifiers immediately before the batched Auth Emulator import.
   const latest = await lookupAccounts(auth, candidates, { includeLegacy: true });
   const pending = [];
   for (const [index, row] of candidates.entries()) {
@@ -400,7 +405,7 @@ async function importMissingAccounts(auth, rows, emulator, importer) {
   if (!pending.length) return;
 
   try {
-    const { errors } = await importer(pending.map(({ record }) => record), emulator ? undefined : { hash });
+    const { errors } = await importer(pending.map(({ record }) => record));
     for (const { index, error } of errors) pending[index].row.importError = error;
   } catch (error) {
     // A lost response may leave some accounts committed. Reconcile by UID and marker.
@@ -499,7 +504,7 @@ async function provisionBatch(auth, db, rows, options) {
   }
 
   await createProfiles(db, rows);
-  await importMissingAccounts(auth, rows, options.emulator, options.importUsers);
+  await importMissingAccounts(auth, rows, options.importUsers);
   const staged = rows.filter((row) => !row.result);
   if (!staged.length) return;
 
@@ -524,10 +529,10 @@ export async function provisionStudents(auth, db, projectId, students, {
   emulator = false,
   importUsers = (records, options) => importNewUsers(auth, records, options),
 } = {}) {
-  if (emulator && (projectId !== demoProject ||
-      process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099")) {
-    throw new RegistrationError("Emulator 발급은 로컬 데모 프로젝트에서만 사용할 수 있습니다.");
+  if (!emulator) {
+    throw new RegistrationError("실제 학생 계정 발급은 rental-setup에서 수행합니다. 이 테스트 지원 코드는 Emulator 전용입니다.");
   }
+  requireLocalEmulators(auth, db, projectId);
   const seen = new Set();
   const rows = students.map((student) => {
     const row = { student };
@@ -572,18 +577,16 @@ async function main() {
     return;
   }
 
-  const projectId = options.emulator ? demoProject : options.project;
+  const projectId = demoProject;
   const { initialPassword } = options;
-  const keepDisabled = !options.emulator && initialPassword !== undefined;
+  const keepDisabled = false;
   const journal = await loadOrCreateJournal(options["credentials-out"], projectId, roster, initialPassword);
   if (options.emulator) {
     process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
     process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
     process.env.METADATA_SERVER_DETECTION = "none";
   }
-  const app = initializeApp(options.emulator
-    ? { projectId }
-    : { projectId, credential: applicationDefault() });
+  const app = initializeApp({ projectId });
 
   try {
     const auth = getAuth(app);

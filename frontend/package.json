@@ -14,9 +14,7 @@
     "emulators": "firebase emulators:start --only auth,firestore --project demo-ohsung-rental --config ../firebase.json",
     "emulators:seed": "node scripts/seed-emulator.mjs",
     "test": "firebase emulators:exec --only auth,firestore --project demo-ohsung-rental --config ../firebase.json \"node --test --test-concurrency=1 tests/*.test.js\"",
-    "build:release": "vite build --mode release",
-    "students:provision": "node scripts/provision-students.mjs",
-    "inventory:migrate": "node scripts/migrate-inventory.mjs"
+    "build:release": "vite build --mode release"
   },
   "dependencies": {
     "firebase": "^13.4.0",

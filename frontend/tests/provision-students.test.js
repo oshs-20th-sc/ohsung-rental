@@ -94,7 +94,7 @@ test("the default validates a roster without creating an account or password fil
 
 test("direct provisioning rejects an invalid student ID before reading or writing profiles", async () => {
   await assert.rejects(
-    provisionStudent(auth, db, projectId, { studentId: "12345/other", name: "잘못된 ID" }),
+    provisionStudent(auth, db, projectId, { studentId: "12345/other", name: "잘못된 ID" }, { emulator: true }),
     /학생 ID를 숫자 7자리로 입력해 주세요/,
   );
   assert.equal((await db.doc("users/12345").get()).exists, false);
@@ -180,6 +180,8 @@ test("the same private journal safely resumes after Auth was enabled but profile
   await chmod(credentials, 0o600);
 
   const failFinalProfileWrite = {
+    projectId: db.projectId,
+    _settings: db._settings,
     doc: (path) => db.doc(path),
     getAll: (...refs) => db.getAll(...refs),
     bulkWriter: () => db.bulkWriter(),

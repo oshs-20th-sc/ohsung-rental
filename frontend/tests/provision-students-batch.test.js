@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes, scryptSync } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { after, before, test } from "node:test";
 import { deleteApp, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -230,42 +230,21 @@ test("an account created after preflight is rejected by guarded import and remai
   });
 });
 
-test("production imports send per-account salted scrypt hashes and student claims", async () => {
-  const password = "Fictional Common 123!";
-  const entries = ["8400001", "8400002"].map((studentId) => ({ ...student(studentId), password }));
-  let importRecords;
-  let request;
-  const observingAuth = Object.create(auth);
-  const handler = auth.authRequestHandler;
-  observingAuth.authRequestHandler = Object.create(handler);
-  observingAuth.authRequestHandler.invokeRequestHandler = (url, settings, data, params) => {
-    request = data;
-    return handler.invokeRequestHandler(url, settings, data, params);
-  };
-  const results = await provisionStudents(auth, db, projectId, entries, {
-    keepDisabled: true,
-    importUsers: (records, options) => {
-      importRecords = records;
-      assert.deepEqual(options.hash, {
-        algorithm: "STANDARD_SCRYPT", memoryCost: 32_768, blockSize: 8, parallelization: 3, derivedKeyLength: 32,
-      });
-      return importNewUsers(observingAuth, records, options);
-    },
-  });
-  assert.deepEqual(results, entries.map(() => ({ status: "fulfilled", value: true })));
-  assert.equal(request.allowOverwrite, false);
-  assert.equal(request.sanityCheck, true);
-  assert.notDeepEqual(importRecords[0].passwordSalt, importRecords[1].passwordSalt);
-  assert.notDeepEqual(importRecords[0].passwordHash, importRecords[1].passwordHash);
-  for (const [index, record] of importRecords.entries()) {
-    assert.equal(Object.hasOwn(record, "password"), false);
-    assert.deepEqual(record.customClaims, { student_id: entries[index].studentId });
-    assert.equal(record.disabled, true);
-    assert.equal(record.passwordSalt.length, 32);
-    assert.deepEqual(record.passwordHash, scryptSync(password, record.passwordSalt, 32, {
-      N: 32_768, r: 8, p: 3, maxmem: 64 * 1024 * 1024,
-    }));
-  }
+test("the web fixture refuses provisioning outside its local Emulator", async () => {
+  const entry = student("8400001");
+  const unexpectedImport = () => assert.fail("Auth must not be called");
+  await assert.rejects(
+    provisionStudents(null, null, projectId, [entry], { importUsers: unexpectedImport }),
+    /rental-setup/,
+  );
+  await assert.rejects(
+    provisionStudents(auth, db, "unrelated-qa-project", [entry], {
+      emulator: true,
+      importUsers: unexpectedImport,
+    }),
+    /loopback Emulator/,
+  );
+  assert.equal((await db.doc(`users/${entry.studentId}`).get()).exists, false);
 });
 
 function recordFor(batches, email) {

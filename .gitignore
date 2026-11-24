@@ -8,6 +8,10 @@ design.md
 *-debug.log
 students.local.json
 students.credentials*.json
+*students*.json
+*credentials*.json
+*roster*.json
+!students.example.json
 
 # Local Firebase credentials and roster files
 .env
@@ -16,8 +20,13 @@ students.credentials*.json
 .firebase/
 *.pem
 *.key
-service-account*.json
-*-firebase-adminsdk-*.json
-students*.csv
-students*.xlsx
-students*.xls
+*.p12
+*.pfx
+*service-account*.json
+*firebase-adminsdk*.json
+firebase-admin.json
+*.csv
+*.xlsx
+*.xls
+*.jsonl
+rules-backup-*.json
