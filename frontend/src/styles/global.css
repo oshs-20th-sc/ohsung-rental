@@ -1,0 +1,53 @@
+/* src/styles/global.css */
+
+/* 1) 전역 토큰: clamp로 폰~PC까지 자연스럽게 */
+:root {
+  --radius: 10px;
+  --space: clamp(8px, 2.2vw, 16px);
+  --font-base: clamp(14px, 2.6vw, 18px);
+  --font-lg:   clamp(16px, 3.2vw, 22px);
+  --btn-h:     clamp(38px, 5.2vw, 48px);
+}
+
+/* 2) 기본 타이포: rem 기반으로 유동 */
+html { font-size: 16px; }
+body { font-size: var(--font-base); }
+
+/* 3) 공통 카드 */
+.card {
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2);
+  margin: var(--space);
+  box-shadow: 0 4px 6px rgba(0,0,0,.08);
+  background: #fff;
+}
+
+/* 4) 공통 버튼(크기/폰트만 전역) */
+.btn {
+  height: var(--btn-h);
+  padding: 0 clamp(12px, 3vw, 20px);
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--font-lg); font-weight: 700;
+  border-radius: clamp(6px, 1.5vw, 8px);
+  border: none; cursor: pointer;
+}
+
+/* 색상/상태만 변형 클래스에서 */
+.btn--primary { background: #fff; color: #2196F3; }
+.btn--primary:hover { background: #1976D2; color: #fff; }
+.btn--gray { background: #f1f3f5; color: #495057; }
+.btn--gray:hover { background: #e9ecef; color: #212529; }
+
+/* 5) 버튼 줄 정렬 유틸 */
+.btn-row { display: flex; align-items: center; gap: 12px; }
+.btn-row--split { display: flex; align-items: center; gap: 12px; }
+.btn-row--split > .push-right { margin-left: auto; }
+
+/* 6) 테이블이 폰에서 터지지 않게 */
+.table-responsive { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+/* 7) 작은 화면에서만 추가로 더 줄이기 */
+@media (max-width: 480px) {
+  .heading-sm { font-size: clamp(16px, 4vw, 20px); }
+}

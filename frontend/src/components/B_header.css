@@ -1,0 +1,58 @@
+.Bheader {
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.HeaderObj {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0;
+  width: 90%;
+  margin: 0 auto;
+}
+
+.photo {
+  height: clamp(20px, 4.5vw, 28px);
+  width: auto;
+  margin-top: 0px;
+}
+
+.logo {
+  font-size: clamp(20px, 4.5vw, 28px);
+  color: #fff;
+  text-align: center;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .HeaderObj {
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 12px;
+  }
+
+  .logo {
+    text-align: left;
+    font-size: clamp(18px, 5.4vw, 24px);
+  }
+}
+
+@media (max-width: 420px) {
+  .HeaderObj {
+    padding: 10px 8px;
+    gap: 8px;
+  }
+
+  .photo {
+    height: 22px;
+  }
+
+  .logo {
+    font-size: clamp(17px, 6vw, 22px);
+  }
+}

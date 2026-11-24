@@ -1,0 +1,23 @@
+**/.idea/
+**/.vscode/
+/.venv
+__pycache__/
+design.md
+/flask_session/
+.DS_Store
+*-debug.log
+students.local.json
+students.credentials*.json
+
+# Local Firebase credentials and roster files
+.env
+.env.*
+!.env.example
+.firebase/
+*.pem
+*.key
+service-account*.json
+*-firebase-adminsdk-*.json
+students*.csv
+students*.xlsx
+students*.xls
