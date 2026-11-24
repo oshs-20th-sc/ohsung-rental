@@ -37,7 +37,7 @@ function Login() {
     } catch (loginError) {
       setError(loginError.code === "auth/too-many-requests"
         ? "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요."
-        : serviceError(loginError, "학생 ID, 관리자 이메일 또는 비밀번호를 확인해 주세요."));
+        : serviceError(loginError, "ID 또는 비밀번호를 확인해 주세요."));
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ function Login() {
 
         <form className="login-form" onSubmit={handleLogin}>
           <div className="login-field">
-            <label htmlFor="identifier">학생 ID 또는 관리자 이메일</label>
+            <label htmlFor="identifier">ID</label>
             <input
               id="identifier"
               name="identifier"
@@ -81,7 +81,7 @@ function Login() {
                 setNotice("");
                 setError("");
               }}
-              placeholder="7자리 학번 또는 이메일"
+              placeholder="ID를 입력하세요"
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
