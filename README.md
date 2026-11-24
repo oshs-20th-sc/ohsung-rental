@@ -1,20 +1,29 @@
-# 빌리러 오성 웹
+# 빌리러 오성
 
-학교 물품의 대여와 반납을 관리하는 React 웹 앱입니다. 브라우저에서 Firebase Authentication과 Cloud Firestore에 연결하고, `frontend/dist`를 정적 사이트로 배포합니다.
+학교 물품의 대여와 반납을 관리하는 웹 앱입니다.
 
 ## 기능
 
 - 학생은 7자리 학생 ID와 개인 비밀번호로 로그인하고, 물품을 대여하거나 반납을 신청합니다.
 - 관리자는 대여·반납 요청을 처리하고, 물품과 번호를 관리합니다.
 - 학생과 관리자는 대여 이력을 확인합니다. 관리자 목록은 검색·필터 및 페이지 이동을 지원합니다.
-- 대여 전환은 물품과 대여 기록을 Firestore 트랜잭션으로 함께 갱신합니다. 권한은 Firestore Security Rules에서 확인합니다.
 
 ## 기술 스택
 
-- React 18, React Router, Vite
-- Firebase Authentication, Cloud Firestore
-- Node.js `24.22.3` (`.node-version`, `.nvmrc`)
-- Firebase Emulator Suite와 Node 내장 테스트 러너
+**Frontend**
+
+![React 18](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![React Router](https://img.shields.io/badge/React_Router-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+
+**Backend & Database**
+
+![Firebase Authentication](https://img.shields.io/badge/Firebase_Authentication-DD2C00?style=for-the-badge&logo=firebase&logoColor=white)
+![Cloud Firestore](https://img.shields.io/badge/Cloud_Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+
+**Runtime**
+
+![Node.js 24.22.3](https://img.shields.io/badge/Node.js_24.22.3-5FA04E?style=for-the-badge&logo=nodedotjs&logoColor=white)
 
 ## 아키텍처
 
@@ -47,16 +56,6 @@ npm run dev:demo
 
 `node -v`는 `v24.22.3`이어야 합니다. 별도 Firebase 프로젝트 설정 없이 출력된 로컬 주소에서 화면을 확인할 수 있습니다.
 
-## 데모 모드
-
-데모는 브라우저 메모리 안의 가상 계정과 재고만 사용합니다. Firebase에 연결하지 않으며 새로고침하면 로그인 상태와 변경 내용이 초기화됩니다.
-
-| 역할 | 로그인 ID | 비밀번호 |
-| --- | --- | --- |
-| 학생 | `2610710` | `demo-only-123` |
-| 관리자 | `admin@example.test` | `demo-only-123` |
-
-데모 계정과 데이터는 `frontend/src/services/demoData.js`에 있습니다. 실제 이름이나 운영 계정 정보를 넣지 마세요.
 
 ## Firebase Emulator
 
@@ -116,12 +115,6 @@ npm run build:demo
 
 Cloudflare 변수에 네 개의 `VITE_FIREBASE_*` 웹 설정을 등록합니다. 빌드 명령에 포함된 `npm ci`가 lockfile 기준으로 의존성을 설치합니다. 별도 업로드가 필요하면 `frontend/dist`를 Cloudflare Pages Direct Upload에 사용합니다. [Cloudflare Pages 빌드 설정](https://developers.cloudflare.com/pages/configuration/build-configuration/)
 
-## GitHub Pages
-
-대상 저장소는 [oshs-20th-sc/ohsung-rental](https://github.com/oshs-20th-sc/ohsung-rental)이며, 주소는 `https://oshs-20th-sc.github.io/ohsung-rental/`입니다. Pages의 Source를 **GitHub Actions**로 선택하고, Actions Variables에 아래 Firebase 웹 설정 네 값을 등록합니다.
-
-저장소의 `.github/workflows/pages.yml`은 `workflow_dispatch` 수동 실행만 지원합니다. **Actions → Deploy GitHub Pages → Run workflow**에서 시작합니다. 빌드는 `frontend`에서 `npm ci && npm run build:release`를 실행하고 `frontend/dist`만 배포합니다. Firebase Authentication 승인 도메인에 `oshs-20th-sc.github.io`를 추가하세요.
-
 ## 환경 변수
 
 로컬 release 빌드에는 `frontend/.env.local`, 호스팅 빌드에는 플랫폼의 환경 변수 저장소에 다음 네 값을 넣습니다. 키와 예시 형식은 [`frontend/.env.example`](frontend/.env.example)에 있습니다.
@@ -153,4 +146,4 @@ VITE_FIREBASE_APP_ID
 
 ## 라이선스
 
-이 프로젝트는 [MIT License](LICENSE)로 배포됩니다.
+[MIT License](LICENSE)
