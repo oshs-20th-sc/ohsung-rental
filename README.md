@@ -35,8 +35,8 @@
 
 ## 저장소 역할
 
-- **이 웹 저장소**는 React 화면, 브라우저 Firebase 연동, Firestore 규칙·인덱스, 로컬 데모·Emulator 테스트와 정적 배포 설정을 관리합니다.
-- **`rental-setup`**은 신뢰된 운영자 환경에서 실제 학생 계정 발급과 기존 재고 마이그레이션을 담당합니다. 명단, 운영 자격 증명, 운영 데이터 변경은 해당 도구의 절차로만 처리합니다.
+- 이 저장소는 React 화면, 브라우저 Firebase 연동, Firestore 규칙·인덱스, 로컬 데모·Emulator 테스트와 정적 배포 설정을 관리합니다.
+- [rental-setup](https://github.com/oshs-20th-sc/rental-setup#readme)은 신뢰된 운영자 환경에서 실제 학생 계정 발급과 기존 재고 마이그레이션을 담당합니다. 명단, 운영 자격 증명, 운영 데이터 변경은 해당 도구의 절차로만 처리합니다.
 - 과거 Flask·MySQL 앱과 기존 SQL 데이터는 이 정적 Firebase 앱에 포함하지 않습니다.
 
 웹 저장소의 `frontend/scripts/`에 남은 계정·재고 스크립트는 회귀 테스트와 가상 Emulator 준비용입니다. 실제 Firebase 프로젝트를 읽거나 변경할 수 없도록 로컬 데모 프로젝트와 loopback Emulator에 제한합니다.
@@ -76,7 +76,13 @@ npm run emulators:seed
 npm run dev:emulator
 ```
 
-웹 앱과 테스트용 스크립트는 `demo-ohsung-rental` 및 `127.0.0.1:9099` (Auth), `127.0.0.1:8080` (Firestore)만 사용합니다. 가상 로그인 값은 데모 계정 표와 같습니다. 테스트 비밀번호를 변경했다면 Emulator를 다시 시작하고 시드를 실행하세요.
+웹 앱과 테스트용 스크립트는 `demo-ohsung-rental` 및 `127.0.0.1:9099` (Auth), `127.0.0.1:8080` (Firestore)만 사용합니다. 아래 가상 계정으로 로그인할 수 있습니다. 테스트 비밀번호를 변경했다면 Emulator를 다시 시작하고 시드를 실행하세요.
+
+| 역할 | ID | 비밀번호 |
+|---|---|---|
+| 학생 | `2610710` | `demo-only-123` |
+| 관리자 | `admin@example.test` | `demo-only-123` |
+
 
 ## 테스트와 정적 검사
 
@@ -101,13 +107,13 @@ npm run build:demo
 
 ## Cloudflare Pages
 
-프로덕션 사이트는 Cloudflare Pages의 사용자 지정 도메인 `rental.coshsc.kr`에 배포합니다.
+프로덕션 사이트는 Cloudflare Pages에 배포합니다.
 
 | 설정 | 값 |
 | --- | --- |
 | Production branch | `main` |
 | Root directory | `frontend` |
-| Framework preset | React (Vite) |
+| Framework preset | `React (Vite) |
 | Build command | `npm ci && npm run build:release` |
 | Build output directory | `dist` |
 | Node.js | `NODE_VERSION=24.22.3` |
@@ -117,7 +123,7 @@ Cloudflare 변수에 네 개의 `VITE_FIREBASE_*` 웹 설정을 등록합니다.
 
 ## 환경 변수
 
-로컬 release 빌드에는 `frontend/.env.local`, 호스팅 빌드에는 플랫폼의 환경 변수 저장소에 다음 네 값을 넣습니다. 키와 예시 형식은 [`frontend/.env.example`](frontend/.env.example)에 있습니다.
+로컬 release 빌드에는 `frontend/.env.local`, 호스팅 빌드에는 플랫폼의 환경 변수 저장소에 다음 네 값을 넣습니다.
 
 ```text
 VITE_FIREBASE_API_KEY
