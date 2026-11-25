@@ -15,7 +15,7 @@ const Footer = () => {
 
         <div className="home-footer__links">
           <a
-            href="https://www.instagram.com/os.19.sc/"
+            href="https://www.instagram.com/os.20_sc/"
             target="_blank"
             rel="noreferrer"
           >
