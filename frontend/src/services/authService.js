@@ -7,64 +7,9 @@ import {
   signOut,
   updatePassword,
 } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, isDemo } from "../firebase/client.js";
+import { auth, isDemo } from "../firebase/client.js";
 import { demoAccounts, demoPassword, demoSession, setDemoUser } from "./demoData.js";
 import { isStudentAuthEmail, studentAuthEmail } from "./studentIdentity.js";
-
-function watchMember(account, onSession, onError) {
-  let profile;
-  let role;
-  let unsubscribeRole;
-  const timer = setTimeout(() => onError({ code: "unavailable" }), 10000);
-
-  const reportError = (error) => {
-    clearTimeout(timer);
-    onError(error);
-  };
-  const publish = () => {
-    if (!profile || !role) return;
-    clearTimeout(timer);
-    onSession({
-      id: account.uid,
-      email: isStudentAuthEmail(account.email) ? null : account.email,
-      studentId: profile.studentId ?? null,
-      name: profile.name,
-      isAdmin: role.data()?.admin === true,
-    });
-  };
-
-  const unsubscribeProfile = onSnapshot(doc(db, "users", account.uid), { includeMetadataChanges: true }, (snapshot) => {
-    if (snapshot.metadata.fromCache) return;
-    profile = snapshot.data();
-    if (!profile) {
-      unsubscribeRole?.();
-      unsubscribeRole = undefined;
-      role = undefined;
-      reportError(new Error("서비스에 등록된 계정이 아닙니다."));
-      return;
-    }
-
-    if (!unsubscribeRole) {
-      unsubscribeRole = onSnapshot(doc(db, "roles", account.uid), { includeMetadataChanges: true }, (snapshot) => {
-        if (snapshot.metadata.fromCache) return;
-        role = snapshot;
-        publish();
-      }, (error) => {
-        unsubscribeRole = undefined;
-        role = undefined;
-        reportError(error);
-      });
-    }
-    publish();
-  }, reportError);
-
-  return () => {
-    clearTimeout(timer);
-    unsubscribeProfile();
-    unsubscribeRole?.();
-  };
-}
 
 export function observeSession(onSession, onError, onPending) {
   if (isDemo) {
@@ -75,9 +20,11 @@ export function observeSession(onSession, onError, onPending) {
 
   let watchedUid;
   let unsubscribeMember;
+  let generation = 0;
   const unsubscribeAuth = onIdTokenChanged(auth, (account) => {
     if (account && watchedUid === account.uid) return;
 
+    const watchGeneration = ++generation;
     unsubscribeMember?.();
     unsubscribeMember = undefined;
     watchedUid = account?.uid;
@@ -87,13 +34,18 @@ export function observeSession(onSession, onError, onPending) {
     }
 
     onPending();
-    unsubscribeMember = watchMember(account, onSession, (error) => {
+    const reportError = (error) => {
+      if (watchGeneration !== generation) return;
       watchedUid = undefined;
       onError(error);
-    });
+    };
+    import("../auth/watchMember.js").then(({ watchMember }) => {
+      if (watchGeneration === generation) unsubscribeMember = watchMember(account, onSession, reportError);
+    }).catch(reportError);
   }, onError);
 
   return () => {
+    generation++;
     unsubscribeMember?.();
     unsubscribeAuth();
   };

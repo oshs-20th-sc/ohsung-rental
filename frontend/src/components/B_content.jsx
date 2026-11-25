@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listProducts } from "../services/productService.js";
+import { watchProducts } from "../services/productService.js";
 import { rent } from "../services/rentalService.js";
 import { serviceError } from "../services/rentalDates.js";
 import "./B_content.css";
@@ -14,17 +14,31 @@ export default function BContent() {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    let receivedInventory = false;
     setLoading(true);
     setError("");
-    listProducts().then((items) => {
-      if (active) setProducts(items);
-    }).catch((error) => {
-      if (active) setError(serviceError(error, "재고를 불러오지 못했습니다."));
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
-    return () => { active = false; };
+    const reportError = (error) => {
+      clearTimeout(timeout);
+      setProducts([]);
+      setError(serviceError(error, "재고를 불러오지 못했습니다."));
+      setLoading(false);
+    };
+    const timeout = setTimeout(() => reportError({ code: "unavailable" }), 10000);
+    const unsubscribe = watchProducts((items) => {
+      if (items === null) {
+        if (receivedInventory) reportError({ code: "unavailable" });
+        return;
+      }
+      receivedInventory = true;
+      clearTimeout(timeout);
+      setProducts(items);
+      setError("");
+      setLoading(false);
+    }, reportError);
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [revision]);
 
   const categories = useMemo(() => {
@@ -50,20 +64,16 @@ export default function BContent() {
     setBusy(true);
     setError("");
     try {
-      await rent(selectedUnit.id);
-      setProducts((items) => items.map((item) =>
-        item.id === selectedUnit.id ? { ...item, status: "rented" } : item
-      ));
+      const rentalId = await rent(selectedUnit.id);
+      // Apply the committed rental unless the listener has already sent a newer snapshot.
+      setProducts((items) => items === products ? items.map((item) =>
+        item.id === selectedUnit.id ? { ...item, status: "rented", activeRentalId: rentalId } : item
+      ) : items);
       alert("대여가 완료되었습니다.");
     } catch (error) {
       alert(serviceError(error, "대여 처리 중 오류가 발생했습니다."));
     } finally {
       setSelectedId(null);
-      try {
-        setProducts(await listProducts());
-      } catch (error) {
-        setError(serviceError(error, "목록을 새로고침해 재고를 확인해 주세요."));
-      }
       setBusy(false);
     }
   };

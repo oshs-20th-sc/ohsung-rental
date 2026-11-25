@@ -1,5 +1,6 @@
 import { where } from "firebase/firestore";
-import { auth, db, isDemo } from "../firebase/client.js";
+import { auth, isDemo } from "../firebase/client.js";
+import { db } from "../firebase/firestoreClient.js";
 import { demoMember, demoProducts, demoRentals } from "./demoData.js";
 import { RENTAL_PERIOD_MS, rentalStatus } from "./rentalDates.js";
 import { memoryPage } from "./firestorePages.js";

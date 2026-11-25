@@ -1,9 +1,10 @@
 import { collection, doc, getDocFromServer, getDocsFromServer } from "firebase/firestore";
-import { db, isDemo } from "../firebase/client.js";
+import { isDemo } from "../firebase/client.js";
+import { db } from "../firebase/firestoreClient.js";
 import { demoAdmin, demoMember, demoProducts } from "./demoData.js";
 import { memoryPage } from "./firestorePages.js";
 import { createProduct, productNumberKey, setProductEnabled as setEnabledTransaction, updateProduct, validateProductInput } from "./inventoryTransactions.js";
-import { compareProductCursor, productCursor, productSearchValue, queryAdminProducts } from "./productQueries.js";
+import { compareProductCursor, productCursor, productSearchValue, queryAdminProducts, watchProductDocuments } from "./productQueries.js";
 
 const readProduct = (product, id) => ({ ...product, id, isEnabled: product.isEnabled !== false });
 
@@ -15,6 +16,22 @@ export async function listProducts() {
 
   const snapshot = await getDocsFromServer(collection(db, "products"));
   return snapshot.docs.map((product) => readProduct(product.data(), product.id));
+}
+
+export function watchProducts(onItems, onError) {
+  if (isDemo) {
+    let active = true;
+    listProducts().then((items) => {
+      if (active) onItems(items);
+    }).catch((error) => {
+      if (active) onError(error);
+    });
+    return () => { active = false; };
+  }
+
+  return watchProductDocuments(db, (documents) => {
+    onItems(documents?.map((product) => readProduct(product.data(), product.id)) ?? null);
+  }, onError);
 }
 
 export async function listAdminProducts({ cursor = null, category = "", searchField = "name", search = "" } = {}) {

@@ -1,13 +1,13 @@
 import { lazy, Suspense } from "react";
 import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "../auth/sessionContext.js";
-import Home from "../pages/Home/Home";
-import Borrow from "../pages/Borrow/Borrow";
-import MyPage from "../pages/MyPage/MyPage";
-import Info from "../pages/MyPage/ChangeInfo";
 import Login from "../pages/Login/Login";
-import Return from "../pages/Return/Return";
 
+const Home = lazy(() => import("../pages/Home/Home"));
+const Borrow = lazy(() => import("../pages/Borrow/Borrow"));
+const MyPage = lazy(() => import("../pages/MyPage/MyPage"));
+const Info = lazy(() => import("../pages/MyPage/ChangeInfo"));
+const Return = lazy(() => import("../pages/Return/Return"));
 const UserManage = lazy(() => import("../pages/UserManage/UserManage"));
 
 function RequireSession() {
@@ -23,7 +23,11 @@ function RequireSession() {
     );
   }
   if (!user) return <Navigate to="/Login" state={{ from: location.pathname }} replace />;
-  return <Outlet key={user.id} />;
+  return (
+    <Suspense fallback={<div className="home-loading" role="status">화면을 불러오고 있어요...</div>}>
+      <Outlet key={user.id} />
+    </Suspense>
+  );
 }
 
 function RequireAdmin() {

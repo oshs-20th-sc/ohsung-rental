@@ -37,11 +37,11 @@ function MetricCard({ label, value, detail, tone }) {
 
 export default function AdminDashboard() {
   const [categoryDraft, setCategoryDraft] = useState("");
-  const [category, setCategory] = useState("");
+  const [request, setRequest] = useState({ category: "", forceClock: true });
+  const { category } = request;
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [revision, setRevision] = useState(0);
   const [categoryHints, setCategoryHints] = useState([]);
 
   useEffect(() => {
@@ -56,11 +56,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let active = true;
+    const { category, forceClock } = request;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
-        const now = await getAdminTime();
+        // Category summaries have no overdue count. Overdue checks and explicit refreshes use a fresh server sample.
+        const now = await getAdminTime({ allowEstimate: Boolean(category) && !forceClock });
         const current = await getAdminSummary({ category, now });
         if (!current || !Number.isFinite(current.total) || !Number.isFinite(current.available) ||
             !Number.isFinite(current.rented) || !Number.isFinite(current.pending) ||
@@ -79,7 +81,12 @@ export default function AdminDashboard() {
     };
     load();
     return () => { active = false; };
-  }, [category, revision]);
+  }, [request]);
+
+  const setCategory = (next) => setRequest((current) => current.category === next
+    ? current
+    : { category: next, forceClock: false });
+  const refresh = () => setRequest((current) => ({ ...current, forceClock: true }));
 
   const applyCategory = (event) => {
     event.preventDefault();
@@ -94,7 +101,7 @@ export default function AdminDashboard() {
           <h2>운영 요약</h2>
           <p>Firestore에 저장된 실제 재고와 기준 시각으로 집계합니다.</p>
         </div>
-        <button type="button" className="admin-button admin-button--quiet" onClick={() => setRevision((value) => value + 1)} disabled={loading}>
+        <button type="button" className="admin-button admin-button--quiet" onClick={refresh} disabled={loading}>
           {loading ? "갱신 중..." : "새로고침"}
         </button>
       </div>
@@ -112,7 +119,7 @@ export default function AdminDashboard() {
       </form>
       <p className="admin-summary-note">분류 제안은 물품 첫 페이지에서 가져옵니다. 다른 분류는 물품 관리 탭에서 확인한 뒤 정확한 이름으로 조회할 수 있습니다.</p>
 
-      {error && <AdminNotice kind="error" onRetry={() => setRevision((value) => value + 1)}>{error}</AdminNotice>}
+      {error && <AdminNotice kind="error" onRetry={refresh}>{error}</AdminNotice>}
       {loading ? <AdminNotice>운영 현황을 집계하는 중입니다...</AdminNotice> : null}
       {!loading && !error && summary && (
         <>

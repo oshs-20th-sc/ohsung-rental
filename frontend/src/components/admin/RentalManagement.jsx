@@ -90,8 +90,7 @@ export default function RentalManagement() {
     try {
       if (pending) await approveReturn(item.id);
       else await markReturnPending(item.id);
-      if (items.length === 1 && page > 1) previous();
-      else reload();
+      reload({ moveBack: items.length === 1 && page > 1 });
     } catch (error) {
       setActionError(serviceError(error, "반납 상태를 변경하지 못했습니다. 목록을 새로고침해 확인해 주세요."));
     } finally {

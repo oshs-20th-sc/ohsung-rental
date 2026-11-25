@@ -20,6 +20,7 @@ import {
   updateProduct,
   validateProductInput,
 } from "../src/services/inventoryTransactions.js";
+import { watchProductDocuments } from "../src/services/productQueries.js";
 import { doc, getDoc, getDocs, collection, query, setDoc, where } from "firebase/firestore";
 
 process.env.METADATA_SERVER_DETECTION ??= "none";
@@ -237,6 +238,30 @@ test("concurrent borrowers cannot rent the same available product", async () => 
   const product = await getDoc(doc(admin, "products", productId));
   assert.equal(product.data().status, "rented");
   assert.equal(typeof product.data().activeRentalId, "string");
+});
+
+test("inventory listener receives another student's committed borrow", { timeout: 10000 }, async () => {
+  await seedBase();
+  const id = await createProduct(dbFor("admin-a"), {
+    category: "구독 테스트", name: "가상 물품", displayNo: 1, isEnabled: true,
+  });
+  let unsubscribe;
+  let rental;
+  try {
+    const updated = await new Promise((resolve, reject) => {
+      unsubscribe = watchProductDocuments(dbFor("student-a"), (documents) => {
+        const product = documents?.find((document) => document.id === id)?.data();
+        if (!rental && product?.status === "available") {
+          rental = borrowProduct(dbFor("student-b"), "student-b", id);
+          rental.catch(reject);
+        }
+        if (product?.status === "rented") resolve(product);
+      }, reject);
+    });
+    assert.equal(updated.activeRentalId, await rental);
+  } finally {
+    unsubscribe?.();
+  }
 });
 
 test("a simultaneous deactivation and borrow has one consistent outcome", async () => {

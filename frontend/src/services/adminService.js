@@ -1,5 +1,6 @@
 import { doc, getDocFromServer, runTransaction, serverTimestamp, where } from "firebase/firestore";
-import { auth, db, isDemo } from "../firebase/client.js";
+import { auth, isDemo } from "../firebase/client.js";
+import { db } from "../firebase/firestoreClient.js";
 import { demoAccounts, demoAdmin, demoProducts, demoRentals } from "./demoData.js";
 import { memoryPage } from "./firestorePages.js";
 import { countProducts } from "./productQueries.js";
@@ -17,25 +18,36 @@ function toDateParts(time) {
 }
 
 const clockRequests = new Map();
-export async function getAdminTime() {
+const clockSampleLifetime = 30000;
+let clockSample;
+export async function getAdminTime({ allowEstimate = false } = {}) {
   if (isDemo) {
     demoAdmin();
     return Date.now();
   }
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error("다시 로그인해 주세요.");
-  if (!clockRequests.has(uid)) {
-    const reference = doc(db, "adminClocks", uid);
+  const account = auth.currentUser;
+  if (!account) throw new Error("다시 로그인해 주세요.");
+  if (clockSample?.account !== account) clockSample = undefined;
+  if (!clockRequests.has(account)) {
+    if (allowEstimate && clockSample) {
+      const elapsed = performance.now() - clockSample.sampledAt;
+      if (elapsed < clockSampleLifetime) return Math.floor(clockSample.serverTime + elapsed);
+    }
+
+    const reference = doc(db, "adminClocks", account.uid);
     const request = (async () => {
       await runTransaction(db, async (transaction) => {
         transaction.set(reference, { now: serverTimestamp() });
       });
       const clock = await getDocFromServer(reference);
-      return clock.get("now").toMillis();
-    })().finally(() => clockRequests.delete(uid));
-    clockRequests.set(uid, request);
+      if (auth.currentUser !== account) throw new Error("다시 로그인해 주세요.");
+      const serverTime = clock.get("now").toMillis();
+      clockSample = { account, serverTime, sampledAt: performance.now() };
+      return serverTime;
+    })().finally(() => clockRequests.delete(account));
+    clockRequests.set(account, request);
   }
-  return clockRequests.get(uid);
+  return clockRequests.get(account);
 }
 
 let cacheOwner;

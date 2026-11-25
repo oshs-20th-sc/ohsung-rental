@@ -1,5 +1,12 @@
-import { collection, documentId, getCountFromServer, orderBy, query, where } from "firebase/firestore";
+import { collection, documentId, getCountFromServer, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { compareText, displayNumber, firestorePage } from "./firestorePages.js";
+
+export function watchProductDocuments(db, onDocuments, onError) {
+  return onSnapshot(collection(db, "products"), { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata.fromCache) onDocuments(null);
+    else if (!snapshot.metadata.hasPendingWrites) onDocuments(snapshot.docs);
+  }, onError);
+}
 
 export function productSearchValue(field, search) {
   if (!["name", "displayNo"].includes(field)) throw new Error("검색 항목을 다시 선택해 주세요.");
