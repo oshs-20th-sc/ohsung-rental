@@ -36,7 +36,7 @@
 ## 저장소 역할
 
 - 이 저장소는 React 화면, 브라우저 Firebase 연동, Firestore 규칙·인덱스, 로컬 데모·Emulator 테스트와 정적 배포 설정을 관리합니다.
-- [rental-setup](https://github.com/oshs-20th-sc/rental-setup#readme)은 신뢰된 운영자 환경에서 실제 학생 계정 발급과 기존 재고 마이그레이션을 담당합니다. 명단, 운영 자격 증명, 운영 데이터 변경은 해당 도구의 절차로만 처리합니다.
+- [rental-setup](https://github.com/oshs-sc/rental-setup#readme)은 신뢰된 운영자 환경에서 실제 학생 계정 발급과 기존 재고 마이그레이션을 담당합니다. 명단, 운영 자격 증명, 운영 데이터 변경은 해당 도구의 절차로만 처리합니다.
 - 과거 Flask·MySQL 앱과 기존 SQL 데이터는 이 정적 Firebase 앱에 포함하지 않습니다.
 
 웹 저장소의 `frontend/scripts/`에 남은 계정·재고 스크립트는 회귀 테스트와 가상 Emulator 준비용입니다. 실제 Firebase 프로젝트를 읽거나 변경할 수 없도록 로컬 데모 프로젝트와 loopback Emulator에 제한합니다.
@@ -121,6 +121,16 @@ npm run build:demo
 
 Cloudflare 변수에 네 개의 `VITE_FIREBASE_*` 웹 설정을 등록합니다. 빌드 명령에 포함된 `npm ci`가 lockfile 기준으로 의존성을 설치합니다. 별도 업로드가 필요하면 `frontend/dist`를 Cloudflare Pages Direct Upload에 사용합니다. [Cloudflare Pages 빌드 설정](https://developers.cloudflare.com/pages/configuration/build-configuration/)
 
+## GitHub Pages
+
+GitHub Pages를 활성화하면 `main`에 푸시할 때 [배포 워크플로](.github/workflows/pages.yml)가 자동으로 실행됩니다. 기본 배포 주소는 `https://oshs-sc.github.io/rental/`입니다.
+
+1. 저장소 **Settings → Pages → Build and deployment**에서 **GitHub Actions**를 선택합니다. [GitHub Pages 게시 소스 설정](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+2. **Settings → Secrets and variables → Actions → Variables**에서 아래 [환경 변수](#환경-변수) 네 개를 저장소 변수로 등록합니다. Firebase Authentication의 승인 도메인에 `oshs-sc.github.io`를 추가합니다.
+3. 설정을 마친 뒤 `main`에 푸시합니다. 즉시 수동으로 배포하려면 **Actions → Deploy GitHub Pages → Run workflow**에서 `main`을 선택합니다. 워크플로는 `frontend`에서 `npm ci`와 `npm run build:release`를 실행하고 `frontend/dist`를 게시합니다.
+
+Vite의 상대 경로와 HashRouter를 사용하므로 `/rental/#/Login`처럼 하위 경로로 접속하거나 새로고침할 수 있습니다.
+
 ## 환경 변수
 
 로컬 release 빌드에는 `frontend/.env.local`, 호스팅 빌드에는 플랫폼의 환경 변수 저장소에 다음 네 값을 넣습니다.
@@ -146,7 +156,7 @@ VITE_FIREBASE_APP_ID
 
 ## CLI와 운영 도구
 
-실제 학생 계정 발급, 새 백엔드 구성, 기존 재고 초기화는 운영 매뉴얼을 따릅니다. [rental-setup 운영 매뉴얼](https://github.com/oshs-20th-sc/rental-setup#readme)
+실제 학생 계정 발급, 새 백엔드 구성, 기존 재고 초기화는 운영 매뉴얼을 따릅니다. [rental-setup 운영 매뉴얼](https://github.com/oshs-sc/rental-setup#readme)
 
 이 저장소의 `frontend/scripts/provision-students.mjs`와 `frontend/scripts/migrate-inventory.mjs`는 Emulator 회귀 테스트를 위한 테스트 지원 코드입니다. 로컬 데모 프로젝트와 loopback Emulator에서만 동작하며, 운영 프로젝트 옵션은 거부합니다. 웹을 빌드하거나 Emulator 회귀 테스트를 실행할 때 `rental-setup` CLI는 필요하지 않습니다.
 
